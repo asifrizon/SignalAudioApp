@@ -1,31 +1,454 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Signal Audio App</title>
+    <title>Signal Audio Lab</title>
 
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <div class="container">
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-icon">∿</div>
 
-        <h1>Signal Audio App</h1>
+            <div>
+                <h1>Signal Audio Lab</h1>
+                <p>Signals & Systems Audio Editor</p>
+            </div>
+        </div>
 
-        <p>This is my first Signals & Systems web-based application.</p>
+        <div class="status">
+            <span class="status-dot"></span>
+            Browser Processing
+        </div>
+    </header>
 
-        <button id="helloButton">
-            Click Me
-        </button>
 
-        <p id="message"></p>
+    <main class="app">
 
-    </div>
+        <!-- Upload -->
+        <section class="upload-card" id="dropZone">
+
+            <div class="upload-icon">↑</div>
+
+            <h2>Open an audio signal</h2>
+
+            <p>
+                Upload WAV, MP3, FLAC or another browser-supported audio file
+            </p>
+
+            <label class="upload-button">
+                Choose Audio
+                <input
+                    type="file"
+                    id="audioFile"
+                    accept="audio/*"
+                    hidden
+                >
+            </label>
+
+            <p class="drop-text">
+                or drag & drop your file here
+            </p>
+
+        </section>
+
+
+        <!-- Main application -->
+        <div id="editor" class="hidden">
+
+            <!-- Audio player -->
+            <section class="player-card">
+
+                <div class="file-info">
+
+                    <div class="music-icon">♫</div>
+
+                    <div>
+                        <h2 id="fileName">Audio</h2>
+                        <p id="fileType">Audio file</p>
+                    </div>
+
+                </div>
+
+                <audio id="audioPlayer" controls></audio>
+
+            </section>
+
+
+            <!-- Statistics -->
+            <section class="stats-grid">
+
+                <div class="stat-card">
+                    <span class="stat-label">Sample Rate</span>
+                    <strong id="sampleRate">—</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Samples / Channel</span>
+                    <strong id="samples">—</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Duration</span>
+                    <strong id="duration">—</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Channels</span>
+                    <strong id="channels">—</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Sampling Period</span>
+                    <strong id="samplingPeriod">—</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">RMS</span>
+                    <strong id="rms">—</strong>
+                </div>
+
+            </section>
+
+
+            <!-- Signal controls -->
+            <section class="control-card">
+
+                <div class="section-heading">
+                    <div>
+                        <span class="eyebrow">SIGNAL</span>
+                        <h2>Signal Controls</h2>
+                    </div>
+                </div>
+
+
+                <div class="controls-grid">
+
+                    <!-- Channel -->
+                    <div class="control-group">
+
+                        <label>Channel</label>
+
+                        <select id="channelSelect">
+
+                            <option value="both">
+                                Both
+                            </option>
+
+                            <option value="left">
+                                Left
+                            </option>
+
+                            <option value="right">
+                                Right
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- X axis -->
+                    <div class="control-group">
+
+                        <label>X-axis</label>
+
+                        <select id="xAxisSelect">
+
+                            <option value="time">
+                                Time
+                            </option>
+
+                            <option value="samples">
+                                Sample Index
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- Start -->
+                    <div class="control-group">
+
+                        <label>Start Sample</label>
+
+                        <input
+                            type="number"
+                            id="startSample"
+                            value="0"
+                            min="0"
+                        >
+
+                    </div>
+
+
+                    <!-- Number -->
+                    <div class="control-group">
+
+                        <label>Number of Samples</label>
+
+                        <input
+                            type="number"
+                            id="sampleCount"
+                            value="10000"
+                            min="1"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <div class="button-row">
+
+                    <button
+                        class="primary-button"
+                        id="applySelection"
+                    >
+                        Apply Selection
+                    </button>
+
+                    <button
+                        class="secondary-button"
+                        id="showAll"
+                    >
+                        Show Entire Signal
+                    </button>
+
+                </div>
+
+            </section>
+
+
+            <!-- Resampling -->
+            <section class="control-card">
+
+                <div class="section-heading">
+
+                    <div>
+                        <span class="eyebrow">SAMPLING</span>
+                        <h2>Resample Signal</h2>
+                    </div>
+
+                    <div class="info-badge">
+                        Changes the sampling rate
+                    </div>
+
+                </div>
+
+
+                <div class="resample-layout">
+
+                    <div class="current-rate">
+
+                        <span>Current rate</span>
+
+                        <strong id="currentRate">
+                            —
+                        </strong>
+
+                    </div>
+
+
+                    <div class="arrow">
+                        →
+                    </div>
+
+
+                    <div class="control-group">
+
+                        <label>New sample rate</label>
+
+                        <select id="newSampleRate">
+
+                            <option value="8000">
+                                8 kHz
+                            </option>
+
+                            <option value="16000">
+                                16 kHz
+                            </option>
+
+                            <option value="22050">
+                                22.05 kHz
+                            </option>
+
+                            <option value="44100">
+                                44.1 kHz
+                            </option>
+
+                            <option value="48000">
+                                48 kHz
+                            </option>
+
+                            <option value="96000">
+                                96 kHz
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <button
+                        class="primary-button"
+                        id="resampleButton"
+                    >
+                        Resample
+                    </button>
+
+                </div>
+
+                <p class="helper-text">
+                    Resampling creates a new discrete-time signal at the
+                    selected sampling rate. It does not simply change the
+                    displayed number.
+                </p>
+
+            </section>
+
+
+            <!-- Waveform -->
+            <section class="waveform-card">
+
+                <div class="waveform-header">
+
+                    <div>
+
+                        <span class="eyebrow">
+                            TIME DOMAIN
+                        </span>
+
+                        <h2>Signal Visualization</h2>
+
+                        <p class="equation">
+                            x[n] = x(nT<sub>s</sub>)
+                        </p>
+
+                    </div>
+
+
+                    <div class="waveform-tools">
+
+                        <button
+                            id="resetZoom"
+                            class="tool-button"
+                        >
+                            Reset View
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="plot-wrapper">
+
+                    <canvas id="waveform"></canvas>
+
+                    <div
+                        id="cursorInfo"
+                        class="cursor-info hidden"
+                    >
+
+                        <div>
+                            Sample
+                            <strong id="cursorSample">—</strong>
+                        </div>
+
+                        <div>
+                            Time
+                            <strong id="cursorTime">—</strong>
+                        </div>
+
+                        <div>
+                            x[n]
+                            <strong id="cursorValue">—</strong>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="axis-footer">
+
+                    <span id="xAxisLabel">
+                        Time (seconds)
+                    </span>
+
+                    <span>
+                        Amplitude
+                    </span>
+
+                </div>
+
+            </section>
+
+
+            <!-- Signal details -->
+            <section class="details-grid">
+
+                <div class="detail-card">
+
+                    <span class="eyebrow">
+                        SIGNAL RANGE
+                    </span>
+
+                    <div class="range-values">
+
+                        <div>
+                            <span>Minimum</span>
+                            <strong id="minValue">—</strong>
+                        </div>
+
+                        <div>
+                            <span>Maximum</span>
+                            <strong id="maxValue">—</strong>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="detail-card">
+
+                    <span class="eyebrow">
+                        VIEW
+                    </span>
+
+                    <p id="viewInfo">
+                        Entire signal
+                    </p>
+
+                </div>
+
+            </section>
+
+        </div>
+
+    </main>
+
+
+    <footer>
+
+        <p>
+            Signal Audio Lab · Built for Signals & Systems
+        </p>
+
+    </footer>
+
 
     <script src="script.js"></script>
 
 </body>
+
 </html>
