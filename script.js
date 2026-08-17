@@ -323,43 +323,18 @@ function drawWaveform() {
         return;
     }
 
-
     resizeCanvas();
 
+    const width = waveform.clientWidth;
+    const height = waveform.clientHeight;
 
-    const width =
-        waveform.width;
-
-    const height =
-        waveform.height;
-
-
-    ctx.clearRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-
-    /*
-        We keep the amplitude range fixed.
-
-        Audio samples are normally in [-1, 1].
-    */
+    ctx.clearRect(0, 0, width, height);
 
     const graphLeft = 70;
     const graphRight = width - 20;
 
     const graphTop = 20;
     const graphBottom = height - 45;
-
-    const graphWidth =
-        graphRight - graphLeft;
-
-    const graphHeight =
-        graphBottom - graphTop;
-
 
     drawGrid(
         graphLeft,
@@ -368,7 +343,6 @@ function drawWaveform() {
         graphBottom
     );
 
-
     drawAxes(
         graphLeft,
         graphRight,
@@ -376,47 +350,50 @@ function drawWaveform() {
         graphBottom
     );
 
+    /*
+     * Decide how the signal should be displayed.
+     */
+
+    const visibleSamples =
+        displayEnd - displayStart;
 
     if (
         channelSelect.value === "both" &&
         currentBuffer.numberOfChannels > 1
     ) {
 
-        drawChannel(
+        drawAdaptiveChannel(
             0,
             graphLeft,
             graphRight,
             graphTop,
-            graphBottom,
-            1
+            graphBottom
         );
 
-        drawChannel(
+        drawAdaptiveChannel(
             1,
             graphLeft,
             graphRight,
             graphTop,
-            graphBottom,
-            -1
+            graphBottom
         );
 
     }
     else {
 
-        drawChannel(
+        const channel =
             channelSelect.value === "right"
                 ? 1
-                : 0,
+                : 0;
 
+        drawAdaptiveChannel(
+            channel,
             graphLeft,
             graphRight,
             graphTop,
-            graphBottom,
-
-            1
+            graphBottom
         );
     }
-
 
     updateAxisLabel();
 
@@ -424,6 +401,304 @@ function drawWaveform() {
 }
 
 
+function drawAdaptiveChannel(
+    channelIndex,
+    left,
+    right,
+    top,
+    bottom
+) {
+
+    const visibleSamples =
+        displayEnd - displayStart;
+
+
+    /*
+     * Very zoomed in:
+     *
+     * Show individual discrete-time samples.
+     */
+
+    if (visibleSamples <= 150) {
+
+        drawDiscreteSignal(
+            channelIndex,
+            left,
+            right,
+            top,
+            bottom
+        );
+
+        return;
+    }
+
+
+    /*
+     * Medium zoom:
+     *
+     * Draw actual sample-to-sample waveform.
+     */
+
+    if (visibleSamples <= 5000) {
+
+        drawActualSamples(
+            channelIndex,
+            left,
+            right,
+            top,
+            bottom
+        );
+
+        return;
+    }
+
+
+    /*
+     * Zoomed out:
+     *
+     * Use min/max envelope.
+     */
+
+    drawSignalEnvelope(
+        channelIndex,
+        left,
+        right,
+        top,
+        bottom
+    );
+}
+
+
+function drawDiscreteSignal(
+    channelIndex,
+    left,
+    right,
+    top,
+    bottom
+) {
+
+    const data =
+        currentBuffer.getChannelData(
+            Math.min(
+                channelIndex,
+                currentBuffer.numberOfChannels - 1
+            )
+        );
+
+
+    const width =
+        right - left;
+
+    const height =
+        bottom - top;
+
+
+    const range =
+        displayEnd - displayStart;
+
+
+    if (range <= 0) {
+        return;
+    }
+
+
+    const zeroY =
+        top + height / 2;
+
+
+    /*
+     * Distance between samples.
+     */
+
+    const spacing =
+        width / Math.max(1, range - 1);
+
+
+    /*
+     * Choose channel colour.
+     */
+
+    let signalColor = "#3da9ff";
+
+    if (
+        channelSelect.value === "both"
+    ) {
+
+        signalColor =
+            channelIndex === 0
+                ? "#8b7cff"
+                : "#4cc9f0";
+    }
+
+
+    ctx.save();
+
+    ctx.strokeStyle =
+        signalColor;
+
+    ctx.fillStyle =
+        signalColor;
+
+    ctx.lineWidth = 1.5;
+
+
+    /*
+     * Draw stems.
+     */
+
+    for (
+        let i = displayStart;
+        i < displayEnd;
+        i++
+    ) {
+
+        const relativeIndex =
+            i - displayStart;
+
+
+        const x =
+            left +
+            relativeIndex * spacing;
+
+
+        const value =
+            data[i];
+
+
+        const y =
+            top +
+            ((1 - value) / 2) *
+            height;
+
+
+        /*
+         * Vertical stem.
+         */
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            x,
+            zeroY
+        );
+
+        ctx.lineTo(
+            x,
+            y
+        );
+
+        ctx.stroke();
+
+
+        /*
+         * Sample point.
+         */
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            y,
+            4,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+         * Sample index.
+         *
+         * Only show labels when there
+         * is enough room.
+         */
+
+        if (spacing >= 35) {
+
+            ctx.fillStyle =
+                "#aab4c9";
+
+            ctx.font =
+                "10px Inter, sans-serif";
+
+            ctx.textAlign =
+                "center";
+
+            ctx.textBaseline =
+                "top";
+
+
+            ctx.fillText(
+                `n=${i}`,
+                x,
+                bottom + 12
+            );
+
+
+            ctx.fillStyle =
+                signalColor;
+        }
+    }
+
+
+    /*
+     * Connect the samples with a thin line.
+     *
+     * This makes the relationship between
+     * the continuous-looking waveform and
+     * the discrete samples easier to see.
+     */
+
+    ctx.beginPath();
+
+
+    for (
+        let i = displayStart;
+        i < displayEnd;
+        i++
+    ) {
+
+        const relativeIndex =
+            i - displayStart;
+
+
+        const x =
+            left +
+            relativeIndex * spacing;
+
+
+        const value =
+            data[i];
+
+
+        const y =
+            top +
+            ((1 - value) / 2) *
+            height;
+
+
+        if (i === displayStart) {
+
+            ctx.moveTo(x, y);
+
+        }
+        else {
+
+            ctx.lineTo(x, y);
+        }
+    }
+
+
+    ctx.globalAlpha = 0.35;
+
+    ctx.lineWidth = 1;
+
+    ctx.stroke();
+
+
+    ctx.restore();
+}
 /* =========================================================
    GRID
 ========================================================= */
@@ -743,12 +1018,21 @@ function drawChannel(
 }
 
 function drawActualSamples(
-    data,
+    channelIndex,
     left,
     right,
     top,
     bottom
 ) {
+
+    const data =
+        currentBuffer.getChannelData(
+            Math.min(
+                channelIndex,
+                currentBuffer.numberOfChannels - 1
+            )
+        );
+
 
     const width =
         right - left;
@@ -761,20 +1045,34 @@ function drawActualSamples(
         displayEnd - displayStart;
 
 
-    /*
-     * Determine how many pixels correspond
-     * to one sample.
-     */
+    if (range <= 0) {
+        return;
+    }
 
-    const samplesPerPixel =
-        range / width;
+
+    const spacing =
+        width / Math.max(1, range - 1);
+
+
+    let signalColor = "#3da9ff";
+
+
+    if (
+        channelSelect.value === "both"
+    ) {
+
+        signalColor =
+            channelIndex === 0
+                ? "#8b7cff"
+                : "#4cc9f0";
+    }
 
 
     ctx.save();
 
 
     /*
-     * Draw connecting signal line.
+     * Draw waveform.
      */
 
     ctx.beginPath();
@@ -786,14 +1084,13 @@ function drawActualSamples(
         i++
     ) {
 
-        const samplePosition =
+        const relativeIndex =
             i - displayStart;
 
 
         const x =
             left +
-            (samplePosition / (range - 1)) *
-            width;
+            relativeIndex * spacing;
 
 
         const value =
@@ -818,63 +1115,20 @@ function drawActualSamples(
     }
 
 
-    /*
-     * Choose signal color.
-     */
+    ctx.strokeStyle =
+        signalColor;
 
-    if (
-        channelSelect.value === "both"
-    ) {
-
-        /*
-         * Left channel
-         */
-
-        if (
-            data ===
-            currentBuffer.getChannelData(0)
-        ) {
-
-            ctx.strokeStyle =
-                "#8b7cff";
-
-        }
-
-        /*
-         * Right channel
-         */
-
-        else {
-
-            ctx.strokeStyle =
-                "#4cc9f0";
-        }
-
-    }
-    else {
-
-        ctx.strokeStyle =
-            "#3da9ff";
-    }
-
-
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.5;
 
     ctx.stroke();
 
 
     /*
-     * Draw sample points.
-     *
-     * We don't want to draw a huge number of
-     * circles if the samples become dense.
+     * If samples have enough spacing,
+     * show their actual locations.
      */
 
-    const pointSpacing =
-        width / range;
-
-
-    if (pointSpacing >= 2) {
+    if (spacing >= 3) {
 
         for (
             let i = displayStart;
@@ -882,14 +1136,13 @@ function drawActualSamples(
             i++
         ) {
 
-            const samplePosition =
+            const relativeIndex =
                 i - displayStart;
 
 
             const x =
                 left +
-                (samplePosition / (range - 1)) *
-                width;
+                relativeIndex * spacing;
 
 
             const value =
@@ -907,14 +1160,14 @@ function drawActualSamples(
             ctx.arc(
                 x,
                 y,
-                2.8,
+                2.3,
                 0,
                 Math.PI * 2
             );
 
 
             ctx.fillStyle =
-                "#3da9ff";
+                signalColor;
 
             ctx.fill();
         }
@@ -924,14 +1177,22 @@ function drawActualSamples(
     ctx.restore();
 }
 
-
 function drawSignalEnvelope(
-    data,
+    channelIndex,
     left,
     right,
     top,
     bottom
 ) {
+
+    const data =
+        currentBuffer.getChannelData(
+            Math.min(
+                channelIndex,
+                currentBuffer.numberOfChannels - 1
+            )
+        );
+
 
     const width =
         right - left;
@@ -945,13 +1206,29 @@ function drawSignalEnvelope(
 
 
     const pixels =
-        Math.floor(width);
+        Math.max(1, Math.floor(width));
+
+
+    let signalColor = "#3da9ff";
+
+
+    if (
+        channelSelect.value === "both"
+    ) {
+
+        signalColor =
+            channelIndex === 0
+                ? "#8b7cff"
+                : "#4cc9f0";
+    }
 
 
     ctx.save();
 
+    ctx.strokeStyle =
+        signalColor;
 
-    ctx.beginPath();
+    ctx.lineWidth = 1.2;
 
 
     for (
@@ -960,33 +1237,21 @@ function drawSignalEnvelope(
         pixel++
     ) {
 
-        /*
-         * Calculate the sample range belonging
-         * to this particular screen pixel.
-         */
-
         let start =
             Math.floor(
                 displayStart +
-                (pixel / pixels) * range
+                pixel / pixels * range
             );
 
 
         let end =
             Math.floor(
                 displayStart +
-                ((pixel + 1) / pixels) * range
+                (pixel + 1) / pixels * range
             );
 
 
-        /*
-         * IMPORTANT:
-         *
-         * Never allow an empty interval.
-         */
-
         if (end <= start) {
-
             end = start + 1;
         }
 
@@ -995,17 +1260,6 @@ function drawSignalEnvelope(
             Math.min(
                 end,
                 displayEnd
-            );
-
-
-        /*
-         * Make sure start is valid.
-         */
-
-        start =
-            Math.max(
-                start,
-                displayStart
             );
 
 
@@ -1023,21 +1277,20 @@ function drawSignalEnvelope(
                 data[i];
 
 
-            if (value < min) {
-                min = value;
-            }
+            min =
+                Math.min(
+                    min,
+                    value
+                );
 
 
-            if (value > max) {
-                max = value;
-            }
+            max =
+                Math.max(
+                    max,
+                    value
+                );
         }
 
-
-        /*
-         * If there was no valid sample,
-         * skip this pixel.
-         */
 
         if (
             min === Infinity ||
@@ -1052,40 +1305,43 @@ function drawSignalEnvelope(
             left + pixel;
 
 
-        const yMin =
+        const yMax =
             top +
             ((1 - max) / 2) *
             height;
 
 
-        const yMax =
+        const yMin =
             top +
             ((1 - min) / 2) *
             height;
 
 
+        /*
+         * Draw the min-max range for this
+         * screen pixel.
+         */
+
+        ctx.beginPath();
+
         ctx.moveTo(
             x,
-            yMin
+            yMax
         );
 
         ctx.lineTo(
             x,
-            yMax
+            yMin
         );
+
+        ctx.stroke();
     }
-
-
-    ctx.strokeStyle =
-        "#3da9ff";
-
-    ctx.lineWidth = 1.2;
-
-    ctx.stroke();
 
 
     ctx.restore();
 }
+
+
 /* =========================================================
    MOUSE INSPECTION
 ========================================================= */
@@ -1703,3 +1959,323 @@ dropZone.addEventListener(
 
     }
 );
+
+waveform.addEventListener(
+    "wheel",
+    function (event) {
+
+        if (!currentBuffer) {
+            return;
+        }
+
+
+        event.preventDefault();
+
+
+        /*
+         * Where is the mouse relative to
+         * the actual graph?
+         */
+
+        const rect =
+            waveform.getBoundingClientRect();
+
+
+        const graphLeft = 70;
+
+        const graphRight =
+            waveform.clientWidth - 20;
+
+
+        const mouseX =
+            event.clientX -
+            rect.left;
+
+
+        /*
+         * Don't zoom outside the graph.
+         */
+
+        if (
+            mouseX < graphLeft ||
+            mouseX > graphRight
+        ) {
+
+            return;
+        }
+
+
+        const ratio =
+            (mouseX - graphLeft) /
+            (graphRight - graphLeft);
+
+
+        /*
+         * Current visible range.
+         */
+
+        const currentRange =
+            displayEnd -
+            displayStart;
+
+
+        /*
+         * Zoom factor.
+         *
+         * Wheel up = zoom in
+         * Wheel down = zoom out
+         */
+
+        const zoomFactor =
+            event.deltaY < 0
+                ? 0.75
+                : 1.333;
+
+
+        let newRange =
+            currentRange *
+            zoomFactor;
+
+
+        /*
+         * Never display less than 5 samples.
+         */
+
+        newRange =
+            Math.max(
+                5,
+                newRange
+            );
+
+
+        /*
+         * Don't go beyond the entire signal.
+         */
+
+        newRange =
+            Math.min(
+                currentBuffer.length,
+                newRange
+            );
+
+
+        /*
+         * Keep the sample underneath
+         * the mouse in the same position.
+         */
+
+        const mouseSample =
+            displayStart +
+            ratio * currentRange;
+
+
+        let newStart =
+            mouseSample -
+            ratio * newRange;
+
+
+        let newEnd =
+            newStart +
+            newRange;
+
+
+        /*
+         * Keep range inside signal.
+         */
+
+        if (newStart < 0) {
+
+            newStart = 0;
+
+            newEnd =
+                newRange;
+        }
+
+
+        if (
+            newEnd >
+            currentBuffer.length
+        ) {
+
+            newEnd =
+                currentBuffer.length;
+
+            newStart =
+                newEnd -
+                newRange;
+        }
+
+
+        displayStart =
+            Math.max(
+                0,
+                Math.floor(newStart)
+            );
+
+
+        displayEnd =
+            Math.min(
+                currentBuffer.length,
+                Math.ceil(newEnd)
+            );
+
+
+        drawWaveform();
+
+    },
+    {
+        passive: false
+    }
+);
+
+let isDragging = false;
+
+let dragStartX = 0;
+
+let dragStartSample = 0;
+
+
+
+waveform.addEventListener(
+    "mousedown",
+    function (event) {
+
+        if (!currentBuffer) {
+            return;
+        }
+
+
+        isDragging = true;
+
+        dragStartX =
+            event.clientX;
+
+        dragStartSample =
+            displayStart;
+
+
+        waveform.style.cursor =
+            "grabbing";
+    }
+);
+
+
+window.addEventListener(
+    "mousemove",
+    function (event) {
+
+        if (
+            !isDragging ||
+            !currentBuffer
+        ) {
+
+            return;
+        }
+
+
+        const graphLeft = 70;
+
+        const graphRight =
+            waveform.clientWidth - 20;
+
+
+        const graphWidth =
+            graphRight -
+            graphLeft;
+
+
+        const range =
+            displayEnd -
+            displayStart;
+
+
+        const pixelsMoved =
+            event.clientX -
+            dragStartX;
+
+
+        const samplesMoved =
+            pixelsMoved /
+            graphWidth *
+            range;
+
+
+        let newStart =
+            dragStartSample -
+            samplesMoved;
+
+
+        let newEnd =
+            newStart +
+            range;
+
+
+        /*
+         * Stop at beginning.
+         */
+
+        if (newStart < 0) {
+
+            newStart = 0;
+
+            newEnd = range;
+        }
+
+
+        /*
+         * Stop at end.
+         */
+
+        if (
+            newEnd >
+            currentBuffer.length
+        ) {
+
+            newEnd =
+                currentBuffer.length;
+
+            newStart =
+                newEnd -
+                range;
+        }
+
+
+        displayStart =
+            Math.floor(
+                Math.max(
+                    0,
+                    newStart
+                )
+            );
+
+
+        displayEnd =
+            Math.ceil(
+                Math.min(
+                    currentBuffer.length,
+                    newEnd
+                )
+            );
+
+
+        drawWaveform();
+    }
+);
+
+
+window.addEventListener(
+    "mouseup",
+    function () {
+
+        if (!isDragging) {
+            return;
+        }
+
+
+        isDragging = false;
+
+        waveform.style.cursor =
+            "crosshair";
+    }
+);
+
