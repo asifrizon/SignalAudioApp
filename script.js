@@ -86,6 +86,7 @@ let displayEnd = 0;
 
 let currentFile = null;
 
+let playbackSample = 0;
 
 /* =========================================================
    FILE LOADING
@@ -316,6 +317,95 @@ function getSelectedChannelData() {
 /* =========================================================
    WAVEFORM DRAWING
 ========================================================= */
+function drawPlayhead() {
+
+    if (!currentBuffer) {
+        return;
+    }
+
+    const graphLeft = 70;
+    const graphRight =
+        waveform.clientWidth - 20;
+
+    const graphTop = 20;
+    const graphBottom =
+        waveform.clientHeight - 45;
+
+    const range =
+        displayEnd - displayStart;
+
+    if (range <= 0) {
+        return;
+    }
+
+    /*
+     * Is the current sample visible?
+     */
+    if (
+        playbackSample < displayStart ||
+        playbackSample > displayEnd
+    ) {
+        return;
+    }
+
+    /*
+     * Convert sample number to
+     * horizontal position.
+     */
+    const ratio =
+        (playbackSample - displayStart) /
+        range;
+
+    const x =
+        graphLeft +
+        ratio *
+        (graphRight - graphLeft);
+
+    ctx.save();
+
+    /*
+     * Playhead line
+     */
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x,
+        graphTop
+    );
+
+    ctx.lineTo(
+        x,
+        graphBottom
+    );
+
+    ctx.strokeStyle =
+        "#ff4d8d";
+
+    ctx.lineWidth = 2;
+
+    ctx.stroke();
+
+    /*
+     * Small circle at the top
+     */
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        graphTop,
+        5,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fillStyle =
+        "#ff4d8d";
+
+    ctx.fill();
+
+    ctx.restore();
+}
+
 
 function drawWaveform() {
 
@@ -398,6 +488,7 @@ function drawWaveform() {
     updateAxisLabel();
 
     updateViewInfo();
+    drawPlayhead();
 }
 
 
@@ -2276,6 +2367,102 @@ window.addEventListener(
 
         waveform.style.cursor =
             "crosshair";
+    }
+);
+
+function moveViewToSample(sample) {
+
+    if (!currentBuffer) {
+        return;
+    }
+
+    const visibleSamples =
+        displayEnd - displayStart;
+
+    /*
+     * If the sample is already visible,
+     * don't move the graph.
+     */
+    if (
+        sample >= displayStart &&
+        sample <= displayEnd
+    ) {
+        return;
+    }
+
+    /*
+     * Put the sample near the center.
+     */
+    displayStart =
+        Math.floor(
+            sample -
+            visibleSamples / 2
+        );
+
+    displayEnd =
+        displayStart +
+        visibleSamples;
+
+    /*
+     * Don't go before the beginning.
+     */
+    if (displayStart < 0) {
+
+        displayStart = 0;
+
+        displayEnd =
+            Math.min(
+                currentBuffer.length,
+                visibleSamples
+            );
+    }
+
+    /*
+     * Don't go beyond the end.
+     */
+    if (
+        displayEnd >
+        currentBuffer.length
+    ) {
+
+        displayEnd =
+            currentBuffer.length;
+
+        displayStart =
+            Math.max(
+                0,
+                displayEnd -
+                visibleSamples
+            );
+    }
+}
+
+audioPlayer.addEventListener(
+    "timeupdate",
+    function () {
+
+        if (!currentBuffer) {
+            return;
+        }
+
+        /*
+         * Audio time → sample number
+         */
+        playbackSample =
+            audioPlayer.currentTime *
+            currentBuffer.sampleRate;
+
+        /*
+         * Make sure the sample is visible.
+         */
+        moveViewToSample(
+            playbackSample
+        );
+
+        /*
+         * Redraw.
+         */
+        drawWaveform();
     }
 );
 
